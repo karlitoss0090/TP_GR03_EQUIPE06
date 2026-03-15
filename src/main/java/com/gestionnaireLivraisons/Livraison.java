@@ -5,9 +5,7 @@ import java.util.ArrayList;
 /**
  * La classe qui modélise une livraison.
  */
-public class Livraison implements Comparable<Livraison>
-        // TODO : À compléter/modifier
-{
+public class Livraison implements Comparable<Livraison> {
 
     // Les données membres statiques
     // TODO : À compléter/modifier
@@ -55,8 +53,7 @@ public class Livraison implements Comparable<Livraison>
      * @return L'id de cette livraison.
      */
     public int getId() {
-        // TODO : À compléter/modifier
-        return 0;
+        return id;
     }
 
     /**
@@ -64,7 +61,9 @@ public class Livraison implements Comparable<Livraison>
      *
      * @return La priorite de cette livraison.
      */
-    // TODO : À compléter/modifier
+    public Priorite getPriorite() {
+        return priorite;
+    }
 
     /**
      * Retourne la tentative pour cette livraison.
@@ -72,8 +71,7 @@ public class Livraison implements Comparable<Livraison>
      * @return La tentative de cette livraison.
      */
     public int getTentative() {
-        // TODO : À compléter/modifier
-        return 0;
+        return tentative;
     }
 
     /**
@@ -82,8 +80,7 @@ public class Livraison implements Comparable<Livraison>
      * @return Le lot de cette livraison.
      */
     public int getLot() {
-        // TODO : À compléter/modifier
-        return 0;
+        return lot;
     }
 
     /**
@@ -91,7 +88,7 @@ public class Livraison implements Comparable<Livraison>
      *
      */
     public void setStatut(Statut statut) {
-        // TODO : À compléter/modifier
+        this.statut = statut;
     }
 
     /**

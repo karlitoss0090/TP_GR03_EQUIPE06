@@ -66,16 +66,17 @@ public class GestionnaireLivraisons implements GestionnaireEvenement {
                     // Créer le livreur avec le constructeur approprié
                     switch (typeLivreur) {
                         case "VELO":
-                            // TODO : À compléter/modifier
-                            livreur = null;
+                            livreur = new LivreurVelo(idLivreur, nomLivreur);
+
                             break;
                         case "CAMION":
-                            // TODO : À compléter/modifier
-                            livreur = null;
+
+                            livreur = new LivreurCamion(idLivreur, nomLivreur);
+
                             break;
                         case "VOITURE":
-                            // TODO : À compléter/modifier
-                            livreur = null;
+                            livreur = new LivreurVoiture(idLivreur, nomLivreur);
+
                             break;
                         default:
                             throw new IOException();
@@ -143,8 +144,19 @@ public class GestionnaireLivraisons implements GestionnaireEvenement {
      * @return La chaîne à renvoyer au client.
      */
     private String traiterEXIT(Evenement evenement) {
-        // TODO : À compléter/modifier
-        return "";
+        Connexion connexion = (Connexion) evenement.getSource();
+        Livreur livreur = this.livreursAuthentifies.get(connexion);
+
+        if (livreur == null) {
+            return "AUTHENTICATION_ERROR";
+        }
+
+        IListeLivraisons livraisonsARemettre = livreur.supprimerToutesLesLivraisons();
+        this.livraisonsAEffectuer.ajouterTout(livraisonsARemettre);
+
+        this.livreursAuthentifies.remove(connexion);
+
+        return "OK";
     }
 
     /**
@@ -154,8 +166,26 @@ public class GestionnaireLivraisons implements GestionnaireEvenement {
      * @return La chaîne à renvoyer au client.
      */
     private String traiterID(Evenement evenement) {
-        // TODO : À compléter/modifier
-        return "";
+
+        Connexion cnx = (Connexion) evenement.getSource();
+        Arguments args = new Arguments(evenement);
+
+        int idLivreur = Integer.parseInt(args.extraireArgumentSuivant());
+
+        Livreur livreur = this.livreursEnregistres.rechercher(idLivreur);
+
+        if (livreur == null) {
+            return "Erreur";
+        }
+
+        if (this.livreursAuthentifies.containsKey(cnx) ||
+                this.livreursAuthentifies.containsValue(livreur)) {
+            return "Erreur";
+        }
+
+        this.livreursAuthentifies.put(cnx, livreur);
+
+        return "OK";
     }
 
     /**
@@ -165,8 +195,61 @@ public class GestionnaireLivraisons implements GestionnaireEvenement {
      * @return La chaîne à renvoyer au client.
      */
     private String traiterREGISTER(Evenement evenement) {
-        // TODO : À compléter/modifier
-        return "";
+
+        Arguments args = new Arguments(evenement);
+
+        int idLivreur;
+        String typeLivreur;
+        String nomLivreur;
+
+        try {
+            idLivreur = Integer.parseInt(args.extraireArgumentSuivant());
+            typeLivreur = args.extraireArgumentSuivant().toUpperCase();
+            nomLivreur = args.lire().trim();
+        } catch (Exception e) {
+            return "BAD_ARGUMENT_ERROR";
+        }
+
+        if (nomLivreur.isEmpty()) {
+            return "BAD_ARGUMENT_ERROR";
+        }
+
+        if (!typeLivreur.equals("VELO") &&
+                !typeLivreur.equals("CAMION") &&
+                !typeLivreur.equals("VOITURE")) {
+            return "BAD_ARGUMENT_ERROR";
+        }
+
+        if (this.livreursEnregistres.rechercher(idLivreur) != null) {
+            return "ID_ALREADY_USED_ERROR";
+        }
+
+        Livreur livreur;
+
+        switch (typeLivreur) {
+            case "VELO":
+                livreur = new LivreurVelo(idLivreur, nomLivreur);
+                break;
+
+            case "CAMION":
+                livreur = new LivreurCamion(idLivreur, nomLivreur);
+                break;
+
+            case "VOITURE":
+                livreur = new LivreurVoiture(idLivreur, nomLivreur);
+                break;
+
+            default:
+                return "BAD_ARGUMENT_ERROR";
+        }
+
+        try {
+            this.livreursEnregistres.ajouter(livreur);
+        } catch (ListeChaineeException e) {
+            return "BAD_ARGUMENT_ERROR";
+        }
+
+        return "REGISTERED";
     }
 
     /**
@@ -176,8 +259,47 @@ public class GestionnaireLivraisons implements GestionnaireEvenement {
      * @return La chaîne à renvoyer au client.
      */
     private String traiterGET(Evenement evenement) {
-        // TODO : À compléter/modifier
-        return "";
+        Connexion connexion = (Connexion) evenement.getSource();
+        Livreur livreur = this.livreursAuthentifies.get(connexion);
+
+        if (livreur == null) {
+            return "AUTHENTICATION_ERROR";
+        }
+
+        int nombreDejaEnCours = 0;
+        Iterator<Livraison> iterateur = livreur.donneIterateurLivraisonsEnCours();
+
+        while (iterateur.hasNext()) {
+            iterateur.next();
+            nombreDejaEnCours++;
+        }
+
+        int nombreAAtribuer = livreur.capaciteLivraison() - nombreDejaEnCours;
+
+        if (nombreAAtribuer <= 0 || this.livraisonsAEffectuer.estVide()) {
+            return "EMPTY";
+        }
+
+        String reponse = "DELIVERIES";
+        int nombreAttribue = 0;
+
+        for (int i = 0; i < nombreAAtribuer && !this.livraisonsAEffectuer.estVide(); i++) {
+            Livraison livraison = this.livraisonsAEffectuer.retirer();
+
+            livreur.ajouterLivraisonEnCours(livraison);
+            livraison.setStatut(Statut.EN_COURS);
+
+            reponse += " " + livraison.getId()
+                    + " " + livraison.getLot()
+                    + " " + livraison.getPriorite()
+                    + " " + livraison.getTentative();
+
+            nombreAttribue++;
+        }
+
+        reponse = "DELIVERIES " + nombreAttribue + reponse.substring(10);
+
+        return reponse;
     }
 
     /**
@@ -187,8 +309,31 @@ public class GestionnaireLivraisons implements GestionnaireEvenement {
      * @return La chaîne à renvoyer au client.
      */
     private String traiterDELIVERED(Evenement evenement) {
-        // TODO : À compléter/modifier
-        return "";
+        Connexion connexion = (Connexion) evenement.getSource();
+        Livreur livreur = this.livreursAuthentifies.get(connexion);
+
+        if (livreur == null) {
+            return "AUTHENTICATION_ERROR";
+        }
+
+        int idLivraison;
+
+        try {
+            idLivraison = Integer.parseInt(evenement.getArgument().trim());
+        } catch (Exception e) {
+            return "BAD_ARGUMENT_ERROR";
+        }
+
+        Livraison livraison = livreur.supprimerLivraisonEnCours(idLivraison);
+
+        if (livraison == null) {
+            return "BAD_DELIVERY_ERROR";
+        }
+
+        livraison.setStatut(Statut.LIVREE);
+        livreur.ajouterLivraisonEffectuee(livraison);
+
+        return "OK";
     }
 
     /**
@@ -198,8 +343,36 @@ public class GestionnaireLivraisons implements GestionnaireEvenement {
      * @return La chaîne à renvoyer au client.
      */
     private String traiterFAILED(Evenement evenement) {
-        // TODO : À compléter/modifier
-        return "";
+        Connexion connexion = (Connexion) evenement.getSource();
+        Livreur livreur = this.livreursAuthentifies.get(connexion);
+
+        if (livreur == null) {
+            return "AUTHENTICATION_ERROR";
+        }
+
+        int idLivraison;
+
+        try {
+            idLivraison = Integer.parseInt(evenement.getArgument().trim());
+        } catch (Exception e) {
+            return "BAD_ARGUMENT_ERROR";
+        }
+
+        Livraison livraison = livreur.supprimerLivraisonEnCours(idLivraison);
+
+        if (livraison == null) {
+            return "BAD_DELIVERY_ERROR";
+        }
+
+        if (livraison.nouvelleTentative()) {
+            livraison.setStatut(Statut.EN_ATTENTE);
+            this.livraisonsAEffectuer.ajouter(livraison);
+        } else {
+            livraison.setStatut(Statut.ECHOUEE);
+            this.livraisonsEchouees.ajouter(livraison);
+        }
+
+        return "OK";
     }
 
     /**
@@ -208,8 +381,17 @@ public class GestionnaireLivraisons implements GestionnaireEvenement {
      * @param evenement L'évènement reçu.
      */
     private String traiterINCOME(Evenement evenement) {
-        // TODO : À compléter/modifier
-        return "";
+        Connexion connexion = (Connexion) evenement.getSource();
+        Livreur livreur = this.livreursAuthentifies.get(connexion);
+
+        // vérifier authentification
+        if (livreur == null) {
+            return "AUTHENTICATION_ERROR";
+        }
+
+        double revenu = livreur.calculerRevenu();
+
+        return "INCOME " + revenu;
     }
 
     /**
@@ -219,8 +401,61 @@ public class GestionnaireLivraisons implements GestionnaireEvenement {
      * @return La chaine constituant la réponse à retourner au client.
      */
     private String traiterINFO(Evenement evenement) {
-        // TODO : À compléter/modifier
-        return "";
+        Connexion connexion = (Connexion) evenement.getSource();
+        Livreur livreur = this.livreursAuthentifies.get(connexion);
+
+        if (livreur == null) {
+            return "AUTHENTICATION_ERROR";
+        }
+
+        String argument = evenement.getArgument();
+
+
+        if (argument == null || argument.trim().isEmpty()) {
+            Iterator<Livraison> iterateur = livreur.donneIterateurLivraisonsEnCours();
+
+            if (!iterateur.hasNext()) {
+                return "NO_DELIVERY_ERROR";
+            }
+
+            String reponse = "DELIVERIES_INFO";
+            int nombreLivraisons = 0;
+
+            while (iterateur.hasNext()) {
+                Livraison livraison = iterateur.next();
+
+                reponse += " " + livraison.getId()
+                        + " " + livraison.getLot()
+                        + " " + livraison.getPriorite()
+                        + " " + livraison.getTentative();
+
+                nombreLivraisons++;
+            }
+
+            reponse = "DELIVERIES_INFO " + nombreLivraisons + reponse.substring("DELIVERIES_INFO".length());
+            return reponse;
+        }
+
+
+        int idLivraison;
+
+        try {
+            idLivraison = Integer.parseInt(argument.trim());
+        } catch (NumberFormatException e) {
+            return "BAD_ARGUMENT_ERROR";
+        }
+
+        Livraison livraison = livreur.rechercherLivraisonEnCours(idLivraison);
+
+        if (livraison == null) {
+            return "BAD_DELIVERY_ERROR";
+        }
+
+        return "DELIVERIES_INFO 1 "
+                + livraison.getId() + " "
+                + livraison.getLot() + " "
+                + livraison.getPriorite() + " "
+                + livraison.getTentative();
     }
 
     /**
