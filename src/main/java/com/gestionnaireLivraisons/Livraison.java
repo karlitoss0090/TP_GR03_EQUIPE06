@@ -40,11 +40,9 @@ public class Livraison implements Comparable<Livraison> {
      * Produit un nouvel ID pour la Livraison
      */
     private static int prochainID() {
-
         int id = compteurID;
         compteurID++;
-
-        return 0;
+        return id;
     }
 
     /**
@@ -96,15 +94,14 @@ public class Livraison implements Comparable<Livraison> {
      *
      * @return False si on a atteint le nombre maximal de tentatives pour cette livraison. True sinon.
      */
-    public boolean nouvelleTentative() {
-
-        if (tentative < MAX_TENTATIVES) {
-            tentative++;
-            return true;
+    public void nouvelleTentative() {
+        if (this.tentative < MAX_TENTATIVES) {
+            this.tentative++;
         }
+    }
 
-        return false;
-
+    public boolean resteTentatives() {
+        return this.tentative < MAX_TENTATIVES;
     }
 
     /**
@@ -147,4 +144,5 @@ public class Livraison implements Comparable<Livraison> {
 
         return 0;
     }
+    
 }

@@ -149,4 +149,20 @@ public abstract class Livreur {
         
         return livraisonsEffectuees.taille();
     }
+        /**
+     * Retourne le nombre de livraisons en cours
+     *
+     * @return Le nombre de livraisons.
+     */
+    public int nbLivraisonsEnCours() {
+    int nombre = 0;
+    Iterator<Livraison> iterateur = this.donneIterateurLivraisonsEnCours();
+
+    while (iterateur.hasNext()) {
+        iterateur.next();
+        nombre++;
+    }
+
+    return nombre;
+}
 }
