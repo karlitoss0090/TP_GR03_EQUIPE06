@@ -266,13 +266,7 @@ public class GestionnaireLivraisons implements GestionnaireEvenement {
             return "AUTHENTICATION_ERROR";
         }
 
-        int nombreDejaEnCours = 0;
-        Iterator<Livraison> iterateur = livreur.donneIterateurLivraisonsEnCours();
-
-        while (iterateur.hasNext()) {
-            iterateur.next();
-            nombreDejaEnCours++;
-        }
+        int nombreDejaEnCours = livreur.nbLivraisonsEnCours();
 
         int nombreAAtribuer = livreur.capaciteLivraison() - nombreDejaEnCours;
 
@@ -364,14 +358,14 @@ public class GestionnaireLivraisons implements GestionnaireEvenement {
             return "BAD_DELIVERY_ERROR";
         }
 
-        if (livraison.nouvelleTentative()) {
+        if (livraison.resteTentatives()) {
+            livraison.nouvelleTentative();
             livraison.setStatut(Statut.EN_ATTENTE);
             this.livraisonsAEffectuer.ajouter(livraison);
         } else {
             livraison.setStatut(Statut.ECHOUEE);
             this.livraisonsEchouees.ajouter(livraison);
         }
-
         return "OK";
     }
 
@@ -464,10 +458,73 @@ public class GestionnaireLivraisons implements GestionnaireEvenement {
      * @param evenement Événement de type INFO à traiter.
      * @return La chaine constituant la réponse à retourner au client.
      */
-    private String traiterSEND(Evenement evenement) {
-        // TODO : À compléter/modifier
-        return "";
+private String traiterSEND(Evenement evenement) {
+    Connexion connexionExpediteur = (Connexion) evenement.getSource();
+    Livreur expediteur = this.livreursAuthentifies.get(connexionExpediteur);
+
+    if (expediteur == null) {
+        return "AUTHENTICATION_ERROR";
     }
+
+    Arguments args = new Arguments(evenement);
+
+    String idMessageStr;
+    String destinataireStr;
+    String message;
+
+    try {
+        idMessageStr = args.extraireArgumentSuivant();
+        destinataireStr = args.extraireArgumentSuivant();
+        message = args.lire().trim();
+    } catch (Exception e) {
+        return "BAD_ARGUMENT_ERROR";
+    }
+
+    if (idMessageStr == null || idMessageStr.trim().isEmpty()
+            || destinataireStr == null || destinataireStr.trim().isEmpty()
+            || message.isEmpty()) {
+        return "BAD_ARGUMENT_ERROR";
+    }
+
+    // doublon : déjà reçu, on n'envoie rien de nouveau, mais on ACK quand même
+    if (this.messagesId.contains(idMessageStr)) {
+        return "ACK " + idMessageStr;
+    }
+
+    this.messagesId.add(idMessageStr);
+
+    // diffusion
+    if (destinataireStr.equals("*")) {
+        for (Map.Entry<Connexion, Livreur> entree : this.livreursAuthentifies.entrySet()) {
+            Connexion cnxDest = entree.getKey();
+            Livreur livreurDest = entree.getValue();
+
+            if (livreurDest.getId() != expediteur.getId()) {
+                cnxDest.envoyer("MSG " + expediteur.getId() + " " + message);
+            }
+        }
+
+        return "ACK " + idMessageStr;
+    }
+
+    // destinataire précis
+    int idDestinataire;
+    try {
+        idDestinataire = Integer.parseInt(destinataireStr);
+    } catch (NumberFormatException e) {
+        return "BAD_ARGUMENT_ERROR";
+    }
+
+    Connexion connexionDestinataire = this.retrouverConnexionLivreurAuthentifie(idDestinataire);
+
+    if (connexionDestinataire == null) {
+        return "AUTHENTICATION_ERROR";
+    }
+
+    connexionDestinataire.envoyer("MSG " + expediteur.getId() + " " + message);
+
+    return "ACK " + idMessageStr;
+}
 
     /**
      * Renvoie un message d'erreur au client pour cause d'évènement inconnu.
@@ -532,4 +589,13 @@ public class GestionnaireLivraisons implements GestionnaireEvenement {
             cnx.envoyer(reponse);
         }
     }
+    private Connexion retrouverConnexionLivreurAuthentifie(int idLivreur) {
+    for (Map.Entry<Connexion, Livreur> entree : this.livreursAuthentifies.entrySet()) {
+        if (entree.getValue().getId() == idLivreur) {
+            return entree.getKey();
+        }
+    }
+    return null;
+    }
+    
 }
